@@ -263,18 +263,16 @@ function randomString(size) {
 }
 
 function test1() {
+	var testdatabase = new db();
+
 	test("Testing of Adding a Schema", function() {
-		var testdatabase = new db();
 		var schemaName = randomString(10);
 		var schema = testdatabase.addSchema(schemaName, ["id", "name"]);
 
 		expect(schema).toEqual(schemaName);
 	});
-}
 
-function test2() {
-	test("Tsting insertion of data into a Schema", function() {
-		var testdatabase = new db();
+	test("Testing insertion of data into a Schema", function() {
 		var schemaName = randomString(10);
 		var schema = testdatabase.addSchema(schemaName, ["id", "name"]);
 
@@ -294,9 +292,17 @@ function test2() {
 
 		expect(allPersons).toHaveLength(2);
 	});
+
+	test("Test sql create table statement", function() {
+		var tableName = randomString(10);
+		var SQL = "CREATE TABLE " + tableName + " (id INT not null, name varchar(13))";
+
+		var schema = testdatabase.sql(SQL);
+
+		expect(schema).toEqual(tableName.toLowerCase());
+	});
 }
 
 (function testrunner() {
 	test1();
-	test2();
 })();
