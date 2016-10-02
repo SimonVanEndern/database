@@ -23,7 +23,13 @@
 			return null;
 		} else {
 			for (var i = 0; i < keys.length; i++) {
-				keys[i] = keys[i].toLowerCase();
+				if (!keys[i].name) {
+					return null;
+				}
+				keys[i] = {
+					name: keys[i].name.toLowerCase(),
+					nullable: keys[i].nullable === true
+				}
 			}
 
 			this.db[name] = {
@@ -49,18 +55,18 @@
 		var toSave = {
 			id: this.db[schema]['id']++
 		};
-		var keys = this.db[schema]['keys'];
+		var keys = this.db[schema].keys;
 		for (var i = 0; i < keys.length; i++) {
 			var key = keys[i];
 
-			if (!object[key]) {
+			if (!object[key.name] && key.nullable !== true) {
 				return null;
 			}
 
-			toSave[key] = object[key];
+			toSave[key.name] = object[key.name];
 		}
 
-		this.db[schema]['entries'].push(toSave);
+		this.db[schema].entries.push(toSave);
 		return toSave;
 	}
 
@@ -208,7 +214,6 @@
 		}
 
 		if (statement.match(/insert/gi)) {
-			debugger;
 			var query = parseInsertStatement(statement);
 			return this.save(query.schemaName, query.toInsert);
 		}
@@ -233,7 +238,7 @@
 			if (line.indexOf(' ') != -1) {
 				line = line.substring(0, line.indexOf(' '));
 			}
-			columns.push(line.toLowerCase());
+			columns.push({name: line.toLowerCase()});
 		}
 
 		return {
@@ -258,6 +263,7 @@
 			return null;
 		}
 
+		//TODO: Read not null from SQL statement. Currently ignored.
 		var object = {};
 		for (var i = 0; i < columns.length; i++) {
 			object[columns[i]] = values[i];
@@ -355,14 +361,22 @@ function test1() {
 
 	test("Testing of Adding a Schema", function() {
 		var schemaName = randomString(10);
-		var schema = testdatabase.addSchema(schemaName, ["id", "name"]);
+		var schema = testdatabase.addSchema(schemaName, [{
+			name: "id"
+		}, {
+			name: "name"
+		}]);
 
 		expect(schema).toEqual(schemaName.toLowerCase());
 	});
 
 	test("Testing insertion of data into a Schema", function() {
 		var schemaName = randomString(10);
-		var schema = testdatabase.addSchema(schemaName, ["id", "name"]);
+		var schema = testdatabase.addSchema(schemaName, [{
+			name: "id"
+		}, {
+			name: "name"
+		}]);
 
 		var person1 = testdatabase.save(schema, {
 			id: 1,
@@ -390,7 +404,7 @@ function test1() {
 		expect(schema).toEqual(tableName.toLowerCase());
 	});
 
-	test("Test sql insert into table statement",function () {
+	test("Test sql insert into table statement", function() {
 		var tablename = randomString(10);
 
 		var column1 = randomString(5);
@@ -399,7 +413,11 @@ function test1() {
 		var value1 = randomString(4);
 		var value2 = 4;
 
-		var schema = testdatabase.addSchema(tablename, new Array(column1, column2));
+		var schema = testdatabase.addSchema(tablename, new Array({
+			name: column1
+		}, {
+			name: column2
+		}));
 
 		var SQL = "INSERT INTO " + tablename + " (" + column1 + ", " + column2 + ") VALUES (" + value1 + ", " + value2 + ");";
 
