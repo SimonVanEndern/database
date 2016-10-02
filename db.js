@@ -238,7 +238,9 @@
 			if (line.indexOf(' ') != -1) {
 				line = line.substring(0, line.indexOf(' '));
 			}
-			columns.push({name: line.toLowerCase()});
+			columns.push({
+				name: line.toLowerCase()
+			});
 		}
 
 		return {
@@ -310,23 +312,27 @@
 
 function assertion(testdata) {
 	this.testdata = testdata;
+	this.assertionResult = function(result) {
+		return result;
+	}
 	this.toEqual = function(value) {
 		if (testdata !== value) {
-			return log(testdata, value);
+			return this.assertionResult(log(testdata, value));
 		}
-		return true;
+		return this.assertionResult(true);
 	}
 
 	this.notToEqual = function(value) {
 		if (testdata === value) {
-			return log(testdata, value);
+			return this.assertionResult(log(testdata, value));
 		}
-		return true;
+		return this.assertionResult(true);
 	}
 	this.toHaveLength = function(value) {
 		if (testdata.length !== value) {
-			return log(testdata, value);
+			return this.assertionResult(log(testdata, value));
 		}
+		return this.assertionResult(true);
 	}
 
 	function log(testdata, value) {
@@ -357,7 +363,44 @@ function randomString(size) {
 }
 
 function test1() {
+	var total = 0;
+	var failed = 0;
+	var totalWhenLastFailed = 0;
+
 	var testdatabase = new db();
+
+	var originalTest = test;
+
+	test = function() {
+		total++;
+		return originalTest.apply(this, arguments);
+	}
+
+	var originalExpect = expect;
+
+	expect = function() {
+		debugger;
+		var result = originalExpect.apply(this, arguments);
+
+		result.originalAssertionresult = result.assertionResult;
+
+		result.assertionResult = function() {
+			var orig = result.originalAssertionresult.apply(this, arguments);
+
+			if (total === totalWhenLastFailed) {
+				return orig;
+			}
+
+			if (orig !== true) {
+				failed++;
+				totalWhenLastFailed = total;
+			}
+
+			return orig;
+		}
+
+		return result;
+	}
 
 	test("Testing of Adding a Schema", function() {
 		var schemaName = randomString(10);
@@ -368,6 +411,60 @@ function test1() {
 		}]);
 
 		expect(schema).toEqual(schemaName.toLowerCase());
+	});
+
+	test("Test saving an object fitting the non nullable schema", function() {
+		var schemaName = randomString(10);
+		var schema = testdatabase.addSchema(schemaName, [{
+			name: "id"
+		}, {
+			name: "name"
+		}]);
+
+		var person = {
+			id: 1,
+			name: "Simon"
+		}
+
+		var savedPerson = testdatabase.save(schema, person);
+
+		expect(savedPerson.id).toEqual(person.id);
+		expect(person.name).toEqual(savedPerson.name);
+	});
+
+	test("Test saving an object not fitting the non nullable schema", function() {
+		var schemaName = randomString(10);
+		var schema = testdatabase.addSchema(schemaName, [{
+			name: "id"
+		}, {
+			name: "name"
+		}]);
+
+		var person = {
+			name: "Simon"
+		}
+
+		var savedPerson = testdatabase.save(schema, person);
+
+		expect(savedPerson).toEqual(null);
+	});
+
+	test("Test saving a minimal object to a partly nullable schema", function() {
+		var schemaName = randomString(10);
+		var schema = testdatabase.addSchema(schemaName, [{
+			name: "id",
+			nullable: true
+		}, {
+			name: "name"
+		}]);
+
+		var person = {
+			name: "Simon"
+		}
+
+		var savedPerson = testdatabase.save(schema, person);
+
+		expect(savedPerson.id).toEqual(person.id);
 	});
 
 	test("Testing insertion of data into a Schema", function() {
@@ -426,8 +523,19 @@ function test1() {
 		expect(savedObject[column1.toLowerCase()]).toEqual(value1);
 		expect(savedObject[column2.toLowerCase()]).toEqual(value2);
 	});
+
+	return ({
+		total: total,
+		failed: failed,
+		passed: total - failed
+	})
 }
 
 (function testrunner() {
-	test1();
+	var result = test1();
+
+	console.log("%c" + result.passed + " of " + result.total + " Tests passed", 'color:green');
+	if (result.failed !== 0) {
+		console.log("%c" + result.failed + " Tests failed", 'color:red');
+	}
 })();
